@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Seblak Story Thermal BLE",
+  "short_name": "Cetak Seblak",
+  "description": "Cetak harga etalase, promo, dan form pemesanan ke printer thermal BLE 80mm.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f5f5",
+  "theme_color": "#facc15",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
