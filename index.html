@@ -581,3 +581,46 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 </script>
 </body>
 </html>
+erRow*height);
+    bitmap.set([0x1D,0x76,0x30,0x00,bytesPerRow&255,(bytesPerRow>>8)&255,height&255,(height>>8)&255],0);
+    let k=8;
+    for(let y=0;y<height;y++){
+      for(let x=0;x<width;x+=8){
+        let b=0;
+        for(let bit=0;bit<8;bit++){
+          const i=((y*width)+(x+bit))*4;
+          const gray=0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2];
+          if(gray<170)b|=(0x80>>bit);
+        }
+        bitmap[k++]=b;
+      }
+    }
+    for(let n=0;n<copies;n++){
+      await writeChunks(INIT);
+      await writeChunks(CENTER);
+      await writeChunks(bitmap);
+      await writeChunks(FEED);
+      await new Promise(r=>setTimeout(r,180));
+      await writeChunks(CUT);
+      if(n<copies-1)await new Promise(r=>setTimeout(r,300));
+    }
+    log('Berhasil mencetak gambar form sebanyak '+copies+' copy.');
+  }catch(e){
+    log('Gagal mencetak gambar form: '+e.message);
+    alert('Gagal mencetak gambar form: '+e.message);
+  }
+}
+$('formPrintBtn').onclick=printOrderForm;
+
+render();updatePreview();
+</script>
+
+<script>
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service worker gagal:', err));
+  });
+}
+</script>
+</body>
+</html>
