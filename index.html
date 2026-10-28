@@ -361,53 +361,60 @@ async function printDirect(){
   try{
     const store=$('store').value.trim()||'SEBLAK STORY';
     const price='Rp'+Number(priceRaw).toLocaleString('id-ID');
-    const width=576, pad=24, inner=width-pad*2;
-    const canvas=document.createElement('canvas');
-    const ctx=canvas.getContext('2d');
-    ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.font='bold 25px Arial';
-    const storeLines=[store.toUpperCase()];
-    ctx.font='900 39px Arial';
-    const words=name.toUpperCase().split(/\s+/), nameLines=[];let line='';
-    for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>inner-20&&line){nameLines.push(line);line=word}else line=test}
-    if(line)nameLines.push(line);
-    const nameFont= nameLines.length>2 ? 32 : 39;
-    ctx.font=`900 ${nameFont}px Arial`;
-    let y=pad+20;
-    const storeY=y; y+=34;
-    y+=18;
-    for(const l of nameLines)y+=nameFont+4;
-    y+=20;
-    const priceFont=price.length>10?48:price.length>8?56:66;
-    const priceBoxH=priceFont+28;
-    const height=y+priceBoxH+pad+12;
-    canvas.width=width;canvas.height=height;
+    // Render bitmap mengikuti struktur Preview Label 80mm: bingkai luar membulat,
+    // garis dalam, nama di tengah, dan kotak harga hitam dengan sudut membulat.
+    const width=576, outer=10, inner=20, side=26;
+    const size=$('size').value;
+    const nameFont=size==='large'?46:size==='small'?32:40;
+    const storeFont=25;
+    const priceFont=price.length>10?45:price.length>8?52:size==='large'?66:size==='small'?44:58;
+    const ctx0=document.createElement('canvas').getContext('2d');
+    ctx0.font=`900 ${nameFont}px Arial`;
+    const maxNameWidth=width-side*2-20;
+    const words=name.toUpperCase().split(/\s+/), lines=[]; let line='';
+    for(const word of words){
+      const candidate=line?line+' '+word:word;
+      if(ctx0.measureText(candidate).width>maxNameWidth && line){lines.push(line);line=word}else line=candidate;
+    }
+    if(line)lines.push(line);
+    let nf=nameFont;
+    if(lines.some(l=>ctx0.measureText(l).width>maxNameWidth)) nf=Math.max(27,nameFont-6);
+    const storeH=storeFont+18, nameLineH=nf*1.1, nameH=lines.length*nameLineH;
+    const top=28, afterStore=18, beforePrice=20, priceBoxH=priceFont+26, bottom=28;
+    const height=Math.max(260,top+storeH+afterStore+nameH+beforePrice+priceBoxH+bottom);
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
     const c=canvas.getContext('2d');
     c.fillStyle='#fff';c.fillRect(0,0,width,height);
-    c.strokeStyle='#111';c.lineWidth=5;c.strokeRect(8,8,width-16,height-16);
-    c.strokeStyle='#111';c.lineWidth=2;c.strokeRect(16,16,width-32,height-32);
+    function roundRect(x,y,w,h,r,fill,stroke,lineWidth=1){
+      c.beginPath();
+      if(c.roundRect)c.roundRect(x,y,w,h,r);else{c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y)}
+      if(fill){c.fillStyle=fill;c.fill()};if(stroke){c.strokeStyle=stroke;c.lineWidth=lineWidth;c.stroke()}
+    }
+    // Bingkai ganda seperti preview aplikasi.
+    roundRect(8,8,width-16,height-16,30,null,'#111',7);
+    roundRect(17,17,width-34,height-34,22,null,'#111',2);
     c.textAlign='center';c.textBaseline='top';c.fillStyle='#111';
-    c.font='bold 25px Arial';c.fillText(store.toUpperCase(),width/2,storeY);
-    let yy=pad+20+34+18;
-    c.font=`900 ${nameFont}px Arial`;
-    for(const l of nameLines){c.fillText(l,width/2,yy);yy+=nameFont+4}
-    yy+=18;
-    const bx=pad, bw=width-pad*2, bh=priceBoxH;
-    c.fillStyle='#111';c.fillRect(bx,yy,bw,bh);
-    c.strokeStyle='#111';c.lineWidth=3;c.strokeRect(bx,yy,bw,bh);
-    c.fillStyle='#fff';c.font=`900 ${priceFont}px Arial`;c.textAlign='center';
-    c.fillText(price,width/2,yy+12,{maxWidth:bw-16});
+    c.font=`800 ${storeFont}px monospace`;
+    c.fillText(store.toUpperCase(),width/2,top,{maxWidth:width-80});
+    let y=top+storeH+afterStore;
+    c.font=`900 ${nf}px Arial`;
+    for(const l of lines){c.fillText(l,width/2,y,{maxWidth:maxNameWidth});y+=nameLineH}
+    y+=beforePrice;
+    const bx=side,bw=width-side*2;
+    roundRect(bx,y,bw,priceBoxH,16,'#111','#111',3);
+    // Inner white keyline as in the preview price highlight.
+    roundRect(bx+4,y+4,bw-8,priceBoxH-8,12,null,'#fff',1.5);
+    c.fillStyle='#fff';c.font=`900 ${priceFont}px Arial`;c.textBaseline='middle';
+    c.fillText(price,width/2,y+priceBoxH/2,{maxWidth:bw-28});
     const img=c.getImageData(0,0,width,height).data;
     const bytesPerRow=Math.ceil(width/8), raster=new Uint8Array(bytesPerRow*height);
-    for(let yy2=0;yy2<height;yy2++)for(let xx=0;xx<width;xx++){
-      const i=(yy2*width+xx)*4;
-      const gray=(img[i]*299+img[i+1]*587+img[i+2]*114)/1000;
-      if(gray<170)raster[yy2*bytesPerRow+(xx>>3)]|=(0x80>>(xx&7));
+    for(let yy=0;yy<height;yy++)for(let xx=0;xx<width;xx++){
+      const i=(yy*width+xx)*4;const gray=(img[i]*299+img[i+1]*587+img[i+2]*114)/1000;
+      if(gray<170)raster[yy*bytesPerRow+(xx>>3)]|=(0x80>>(xx&7));
     }
     const header=Uint8Array.from([0x1B,0x40,0x1D,0x76,0x30,0x00,bytesPerRow&255,(bytesPerRow>>8)&255,height&255,(height>>8)&255]);
-    const feed=Uint8Array.from([10,10,10]);
-    await writeChunks(header);await writeChunks(raster);await writeChunks(feed);
-    log('Label harga bergambar berhasil dicetak.');
+    await writeChunks(header);await writeChunks(raster);await writeChunks(Uint8Array.from([10,10,10]));
+    log('Label harga bitmap berhasil dicetak mengikuti desain preview.');
   }catch(e){log('Gagal mencetak: '+e.message);alert('Gagal mencetak: '+e.message)}
 }
 $('printBtn').onclick=printDirect;
