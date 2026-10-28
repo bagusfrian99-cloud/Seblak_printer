@@ -107,6 +107,11 @@ button{border:0;border-radius:9px;padding:12px;font-weight:800;font-size:14px}
   letter-spacing:-1px;
   margin-top:4px;
 }
+.price-highlight{
+  background:#111;color:#fff;margin:12px 0 0;padding:10px 5px;
+  border:3px solid #111;border-radius:8px;
+  box-shadow:inset 0 0 0 1px #fff;
+}
 
 </style>
 </head>
@@ -228,7 +233,7 @@ button{border:0;border-radius:9px;padding:12px;font-weight:800;font-size:14px}
 <div class="paper price-card" style="background:#fff;border:4px solid #111!important;border-radius:18px;padding:14px 10px!important">
   <div class="store" id="pStore">SEBLAK STORY</div>
   <div class="name" id="pName">NAMA BARANG</div>
-  <div style="background:#111;color:#fff;margin:12px 0 0;padding:8px 4px;border-radius:8px">
+  <div class="price-highlight">
     <div class="price" id="pPrice" style="color:#fff;margin:0">Rp4.000</div>
   </div>
 </div>
@@ -354,22 +359,55 @@ async function printDirect(){
   const name=$('name').value.trim(), priceRaw=$('price').value.replace(/\D/g,'');
   if(!name||!priceRaw){alert('Isi nama barang dan harga.');return}
   try{
-    const INIT=Uint8Array.from([0x1B,0x40]), CENTER=Uint8Array.from([0x1B,0x61,0x01]);
-    const BOLD_ON=Uint8Array.from([0x1B,0x45,0x01]), BOLD_OFF=Uint8Array.from([0x1B,0x45,0x00]);
-    const NORMAL=Uint8Array.from([0x1D,0x21,0x00]), DOUBLE=Uint8Array.from([0x1D,0x21,0x11]);
-    const LARGE=Uint8Array.from([0x1D,0x21,0x22]), FEED=Uint8Array.from([10,10,10]);
-    const CUT=Uint8Array.from([0x1D,0x56,0x00]), enc=t=>new TextEncoder().encode(t);
     const store=$('store').value.trim()||'SEBLAK STORY';
     const price='Rp'+Number(priceRaw).toLocaleString('id-ID');
-    const rule='------------------------------';
-    await writeChunks(INIT); await writeChunks(CENTER); await writeChunks(BOLD_ON);
-    await writeChunks(DOUBLE); await writeChunks(enc(store.toUpperCase())); await writeChunks(Uint8Array.from([10,10]));
-    await writeChunks(NORMAL); await writeChunks(enc(rule)); await writeChunks(Uint8Array.from([10]));
-    await writeChunks(DOUBLE); await writeChunks(enc(name.toUpperCase())); await writeChunks(Uint8Array.from([10,10]));
-    await writeChunks(LARGE); await writeChunks(enc(price)); await writeChunks(Uint8Array.from([10]));
-    await writeChunks(BOLD_OFF); await writeChunks(NORMAL); await writeChunks(FEED);
-    await new Promise(r=>setTimeout(r,150)); await writeChunks(CUT);
-    log('Label harga berhasil dicetak.');
+    const width=576, pad=24, inner=width-pad*2;
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.font='bold 25px Arial';
+    const storeLines=[store.toUpperCase()];
+    ctx.font='900 39px Arial';
+    const words=name.toUpperCase().split(/\s+/), nameLines=[];let line='';
+    for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>inner-20&&line){nameLines.push(line);line=word}else line=test}
+    if(line)nameLines.push(line);
+    const nameFont= nameLines.length>2 ? 32 : 39;
+    ctx.font=`900 ${nameFont}px Arial`;
+    let y=pad+20;
+    const storeY=y; y+=34;
+    y+=18;
+    for(const l of nameLines)y+=nameFont+4;
+    y+=20;
+    const priceFont=price.length>10?48:price.length>8?56:66;
+    const priceBoxH=priceFont+28;
+    const height=y+priceBoxH+pad+12;
+    canvas.width=width;canvas.height=height;
+    const c=canvas.getContext('2d');
+    c.fillStyle='#fff';c.fillRect(0,0,width,height);
+    c.strokeStyle='#111';c.lineWidth=5;c.strokeRect(8,8,width-16,height-16);
+    c.strokeStyle='#111';c.lineWidth=2;c.strokeRect(16,16,width-32,height-32);
+    c.textAlign='center';c.textBaseline='top';c.fillStyle='#111';
+    c.font='bold 25px Arial';c.fillText(store.toUpperCase(),width/2,storeY);
+    let yy=pad+20+34+18;
+    c.font=`900 ${nameFont}px Arial`;
+    for(const l of nameLines){c.fillText(l,width/2,yy);yy+=nameFont+4}
+    yy+=18;
+    const bx=pad, bw=width-pad*2, bh=priceBoxH;
+    c.fillStyle='#111';c.fillRect(bx,yy,bw,bh);
+    c.strokeStyle='#111';c.lineWidth=3;c.strokeRect(bx,yy,bw,bh);
+    c.fillStyle='#fff';c.font=`900 ${priceFont}px Arial`;c.textAlign='center';
+    c.fillText(price,width/2,yy+12,{maxWidth:bw-16});
+    const img=c.getImageData(0,0,width,height).data;
+    const bytesPerRow=Math.ceil(width/8), raster=new Uint8Array(bytesPerRow*height);
+    for(let yy2=0;yy2<height;yy2++)for(let xx=0;xx<width;xx++){
+      const i=(yy2*width+xx)*4;
+      const gray=(img[i]*299+img[i+1]*587+img[i+2]*114)/1000;
+      if(gray<170)raster[yy2*bytesPerRow+(xx>>3)]|=(0x80>>(xx&7));
+    }
+    const header=Uint8Array.from([0x1B,0x40,0x1D,0x76,0x30,0x00,bytesPerRow&255,(bytesPerRow>>8)&255,height&255,(height>>8)&255]);
+    const feed=Uint8Array.from([10,10,10]);
+    await writeChunks(header);await writeChunks(raster);await writeChunks(feed);
+    log('Label harga bergambar berhasil dicetak.');
   }catch(e){log('Gagal mencetak: '+e.message);alert('Gagal mencetak: '+e.message)}
 }
 $('printBtn').onclick=printDirect;
@@ -539,49 +577,6 @@ async function printOrderForm(){
     const pixels=ctx.getImageData(0,0,width,height).data;
     const bytesPerRow=width/8;
     const bitmap=new Uint8Array(8+bytesPerRow*height);
-    bitmap.set([0x1D,0x76,0x30,0x00,bytesPerRow&255,(bytesPerRow>>8)&255,height&255,(height>>8)&255],0);
-    let k=8;
-    for(let y=0;y<height;y++){
-      for(let x=0;x<width;x+=8){
-        let b=0;
-        for(let bit=0;bit<8;bit++){
-          const i=((y*width)+(x+bit))*4;
-          const gray=0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2];
-          if(gray<170)b|=(0x80>>bit);
-        }
-        bitmap[k++]=b;
-      }
-    }
-    for(let n=0;n<copies;n++){
-      await writeChunks(INIT);
-      await writeChunks(CENTER);
-      await writeChunks(bitmap);
-      await writeChunks(FEED);
-      await new Promise(r=>setTimeout(r,180));
-      await writeChunks(CUT);
-      if(n<copies-1)await new Promise(r=>setTimeout(r,300));
-    }
-    log('Berhasil mencetak gambar form sebanyak '+copies+' copy.');
-  }catch(e){
-    log('Gagal mencetak gambar form: '+e.message);
-    alert('Gagal mencetak gambar form: '+e.message);
-  }
-}
-$('formPrintBtn').onclick=printOrderForm;
-
-render();updatePreview();
-</script>
-
-<script>
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service worker gagal:', err));
-  });
-}
-</script>
-</body>
-</html>
-erRow*height);
     bitmap.set([0x1D,0x76,0x30,0x00,bytesPerRow&255,(bytesPerRow>>8)&255,height&255,(height>>8)&255],0);
     let k=8;
     for(let y=0;y<height;y++){
