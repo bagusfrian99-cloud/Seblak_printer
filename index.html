@@ -361,60 +361,69 @@ async function printDirect(){
   try{
     const store=$('store').value.trim()||'SEBLAK STORY';
     const price='Rp'+Number(priceRaw).toLocaleString('id-ID');
-    // Render bitmap mengikuti struktur Preview Label 80mm: bingkai luar membulat,
-    // garis dalam, nama di tengah, dan kotak harga hitam dengan sudut membulat.
-    const width=576, outer=10, inner=20, side=26;
-    const size=$('size').value;
-    const nameFont=size==='large'?46:size==='small'?32:40;
+    const width=576, side=26, size=$('size').value;
+    const nameFont=size==='large'?46:size==='small'?34:42;
     const storeFont=25;
-    const priceFont=price.length>10?45:price.length>8?52:size==='large'?66:size==='small'?44:58;
-    const ctx0=document.createElement('canvas').getContext('2d');
-    ctx0.font=`900 ${nameFont}px Arial`;
-    const maxNameWidth=width-side*2-20;
+    const priceFont=price.length>10?43:price.length>8?50:size==='large'?64:size==='small'?46:58;
+    const measure=document.createElement('canvas').getContext('2d');
+    measure.font=`bold ${nameFont}px Arial`;
+    const maxNameWidth=width-side*2-24;
     const words=name.toUpperCase().split(/\s+/), lines=[]; let line='';
     for(const word of words){
       const candidate=line?line+' '+word:word;
-      if(ctx0.measureText(candidate).width>maxNameWidth && line){lines.push(line);line=word}else line=candidate;
+      if(measure.measureText(candidate).width>maxNameWidth && line){lines.push(line);line=word}else line=candidate;
     }
     if(line)lines.push(line);
-    let nf=nameFont;
-    if(lines.some(l=>ctx0.measureText(l).width>maxNameWidth)) nf=Math.max(27,nameFont-6);
-    const storeH=storeFont+18, nameLineH=nf*1.1, nameH=lines.length*nameLineH;
-    const top=28, afterStore=18, beforePrice=20, priceBoxH=priceFont+26, bottom=28;
-    const height=Math.max(260,top+storeH+afterStore+nameH+beforePrice+priceBoxH+bottom);
-    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-    const c=canvas.getContext('2d');
-    c.fillStyle='#fff';c.fillRect(0,0,width,height);
-    function roundRect(x,y,w,h,r,fill,stroke,lineWidth=1){
+    const nameLineH=nameFont*1.18;
+    const storeH=storeFont+18, top=30, afterStore=22, beforePrice=24;
+    const priceBoxH=priceFont+34, bottom=34;
+    const height=Math.max(280,top+storeH+afterStore+lines.length*nameLineH+beforePrice+priceBoxH+bottom);
+    const canvas=document.createElement('canvas'); canvas.width=width; canvas.height=height;
+    const c=canvas.getContext('2d',{willReadFrequently:true});
+    c.fillStyle='#fff'; c.fillRect(0,0,width,height);
+    function rr(x,y,w,h,r,fill,stroke,lw=1){
       c.beginPath();
-      if(c.roundRect)c.roundRect(x,y,w,h,r);else{c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y)}
-      if(fill){c.fillStyle=fill;c.fill()};if(stroke){c.strokeStyle=stroke;c.lineWidth=lineWidth;c.stroke()}
+      if(c.roundRect)c.roundRect(x,y,w,h,r);
+      else {c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y)}
+      if(fill){c.fillStyle=fill;c.fill()} if(stroke){c.strokeStyle=stroke;c.lineWidth=lw;c.stroke()}
     }
-    // Bingkai ganda seperti preview aplikasi.
-    roundRect(8,8,width-16,height-16,30,null,'#111',7);
-    roundRect(17,17,width-34,height-34,22,null,'#111',2);
-    c.textAlign='center';c.textBaseline='top';c.fillStyle='#111';
-    c.font=`800 ${storeFont}px monospace`;
-    c.fillText(store.toUpperCase(),width/2,top,{maxWidth:width-80});
+    // Background putih penuh agar piksel transparan tidak salah dibaca printer.
+    rr(8,8,width-16,height-16,30,'#fff','#000',7);
+    rr(18,18,width-36,height-36,22,null,'#000',2);
+    c.textAlign='center'; c.textBaseline='top'; c.fillStyle='#000';
+    c.font=`bold ${storeFont}px monospace`;
+    c.fillText(store.toUpperCase(),width/2,top);
     let y=top+storeH+afterStore;
-    c.font=`900 ${nf}px Arial`;
-    for(const l of lines){c.fillText(l,width/2,y,{maxWidth:maxNameWidth});y+=nameLineH}
+    c.font=`bold ${nameFont}px Arial`;
+    c.lineJoin='round'; c.lineWidth=1.4;
+    for(const l of lines){c.fillText(l,width/2,y,maxNameWidth);c.strokeText(l,width/2,y,maxNameWidth);y+=nameLineH}
     y+=beforePrice;
     const bx=side,bw=width-side*2;
-    roundRect(bx,y,bw,priceBoxH,16,'#111','#111',3);
-    // Inner white keyline as in the preview price highlight.
-    roundRect(bx+4,y+4,bw-8,priceBoxH-8,12,null,'#fff',1.5);
-    c.fillStyle='#fff';c.font=`900 ${priceFont}px Arial`;c.textBaseline='middle';
-    c.fillText(price,width/2,y+priceBoxH/2,{maxWidth:bw-28});
-    const img=c.getImageData(0,0,width,height).data;
+    // Kotak harga tetap tegas; teks hitam di bidang putih agar pasti terbaca printer thermal.
+    rr(bx,y,bw,priceBoxH,16,'#fff','#000',5);
+    rr(bx+5,y+5,bw-10,priceBoxH-10,12,null,'#000',1.5);
+    c.fillStyle='#000'; c.font=`bold ${priceFont}px Arial`; c.textBaseline='middle';
+    c.fillText(price,width/2,y+priceBoxH/2,bw-30);
+    c.strokeText(price,width/2,y+priceBoxH/2,bw-30);
+
+    const image=c.getImageData(0,0,width,height).data;
     const bytesPerRow=Math.ceil(width/8), raster=new Uint8Array(bytesPerRow*height);
-    for(let yy=0;yy<height;yy++)for(let xx=0;xx<width;xx++){
-      const i=(yy*width+xx)*4;const gray=(img[i]*299+img[i+1]*587+img[i+2]*114)/1000;
-      if(gray<170)raster[yy*bytesPerRow+(xx>>3)]|=(0x80>>(xx&7));
+    for(let yy=0;yy<height;yy++) for(let xx=0;xx<width;xx++){
+      const i=(yy*width+xx)*4, a=image[i+3]/255;
+      const r=image[i]*a+255*(1-a), g=image[i+1]*a+255*(1-a), b=image[i+2]*a+255*(1-a);
+      const gray=(r*299+g*587+b*114)/1000;
+      if(gray<200) raster[yy*bytesPerRow+(xx>>3)]|=(0x80>>(xx&7));
     }
+    // GS v 0 raster: kirim gambar, beri jarak kertas, lalu potong setelah data terkirim.
     const header=Uint8Array.from([0x1B,0x40,0x1D,0x76,0x30,0x00,bytesPerRow&255,(bytesPerRow>>8)&255,height&255,(height>>8)&255]);
-    await writeChunks(header);await writeChunks(raster);await writeChunks(Uint8Array.from([10,10,10]));
-    log('Label harga bitmap berhasil dicetak mengikuti desain preview.');
+    const FEED=Uint8Array.from([10,10,10,10]);
+    const CUT=Uint8Array.from([0x1D,0x56,0x00]);
+    await writeChunks(header);
+    await writeChunks(raster);
+    await writeChunks(FEED);
+    await new Promise(r=>setTimeout(r,250));
+    await writeChunks(CUT);
+    log('Label bitmap berhasil dicetak dan perintah cut telah dikirim.');
   }catch(e){log('Gagal mencetak: '+e.message);alert('Gagal mencetak: '+e.message)}
 }
 $('printBtn').onclick=printDirect;
